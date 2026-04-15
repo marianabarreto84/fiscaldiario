@@ -8,8 +8,8 @@ const ENTRY_TYPES = {
     fields: [
       { key: 'servico', label: 'Serviço', type: 'select', options: ['Uber', '99', 'Táxi', 'Ônibus', 'Metrô', 'Carro', 'A pé', 'Outro'] },
       { key: 'sentido', label: 'Sentido', type: 'select', options: ['Ida', 'Volta', 'Ida e volta'] },
-      { key: 'de', label: 'De', type: 'text', placeholder: 'Casa JB' },
-      { key: 'para', label: 'Para', type: 'text', placeholder: 'Quantum' },
+      { key: 'de', label: 'De', type: 'text', placeholder: 'Casa JB', autocomplete: true },
+      { key: 'para', label: 'Para', type: 'text', placeholder: 'Quantum', autocomplete: true },
       { key: 'valor', label: 'Valor (R$)', type: 'number', step: '0.01', placeholder: '0,00', optional: true },
     ],
   },
@@ -18,8 +18,8 @@ const ENTRY_TYPES = {
     label: 'Música',
     color: '#e74c3c',
     fields: [
-      { key: 'artista', label: 'Artista', type: 'text' },
-      { key: 'album', label: 'Álbum / Música / Playlist', type: 'text' },
+      { key: 'artista', label: 'Artista', type: 'text', autocomplete: true },
+      { key: 'album', label: 'Álbum / Música / Playlist', type: 'text', autocomplete: true },
       { key: 'contexto', label: 'Contexto', type: 'text', placeholder: 'indo para o trabalho', optional: true },
     ],
   },
@@ -29,7 +29,7 @@ const ENTRY_TYPES = {
     color: '#8e44ad',
     fields: [
       { key: 'tipo', label: 'Tipo', type: 'select', options: ['Série', 'Filme', 'Documentário', 'Anime', 'Outro'] },
-      { key: 'titulo', label: 'Título', type: 'text' },
+      { key: 'titulo', label: 'Título', type: 'text', autocomplete: true },
       { key: 'episodio', label: 'Episódio', type: 'text', placeholder: 'S01E03', optional: true },
       { key: 'periodo', label: 'Período', type: 'select', options: ['Manhã', 'Tarde', 'Noite'], optional: true },
     ],
@@ -59,8 +59,8 @@ const ENTRY_TYPES = {
     color: '#2980b9',
     fields: [
       { key: 'tipo', label: 'Tipo', type: 'select', options: ['Livro', 'Artigo', 'Newsletter', 'HQ', 'Outro'] },
-      { key: 'titulo', label: 'Título', type: 'text' },
-      { key: 'autor', label: 'Autor', type: 'text', optional: true },
+      { key: 'titulo', label: 'Título', type: 'text', autocomplete: true },
+      { key: 'autor', label: 'Autor', type: 'text', optional: true, autocomplete: true },
     ],
   },
   gasto: {
@@ -68,9 +68,9 @@ const ENTRY_TYPES = {
     label: 'Gasto',
     color: '#c0392b',
     fields: [
-      { key: 'descricao', label: 'Descrição', type: 'text' },
+      { key: 'descricao', label: 'Descrição', type: 'text', autocomplete: true },
       { key: 'valor', label: 'Valor (R$)', type: 'number', step: '0.01' },
-      { key: 'categoria', label: 'Categoria', type: 'text', placeholder: 'alimentação, lazer…', optional: true },
+      { key: 'categoria', label: 'Categoria', type: 'text', placeholder: 'alimentação, lazer…', optional: true, autocomplete: true },
     ],
   },
   nota: {
@@ -455,7 +455,7 @@ function showTypeStep() {
   document.getElementById('step-form').classList.add('hidden');
 }
 
-function showFormStep(type) {
+async function showFormStep(type) {
   selectedType = type;
   const typeDef = ENTRY_TYPES[type];
 
@@ -463,20 +463,60 @@ function showFormStep(type) {
   document.getElementById('step-form').classList.remove('hidden');
   document.getElementById('form-title').textContent = `${typeDef.icon} ${typeDef.label}`;
 
-  // Build form fields
-  document.getElementById('form-fields').innerHTML =
-    typeDef.fields.map(buildField).join('');
+  const suggestions = await loadSuggestions(type);
 
-  // Focus first input
+  document.getElementById('form-fields').innerHTML =
+    typeDef.fields.map(f => buildField(f, suggestions)).join('');
+
   setTimeout(() => {
     const first = document.querySelector('#form-fields input, #form-fields select, #form-fields textarea');
     if (first) first.focus();
   }, 80);
 }
 
+// ─── Suggestions ─────────────────────────────────────────────────────────────
+
+async function loadSuggestions(type) {
+  const acFields = ENTRY_TYPES[type].fields.filter(f => f.autocomplete);
+  if (acFields.length === 0) return {};
+
+  const suggestions = {};
+
+  if (db) {
+    const { data } = await db
+      .from('log_entries')
+      .select('data')
+      .eq('type', type);
+
+    if (data) {
+      acFields.forEach(f => {
+        suggestions[f.key] = [...new Set(
+          data.map(e => e.data?.[f.key]).filter(Boolean)
+        )].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      });
+    }
+  } else {
+    const allEntries = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key.startsWith('diary_')) {
+        const items = JSON.parse(localStorage.getItem(key) || '[]');
+        allEntries.push(...items.filter(e => e.type === type));
+      }
+    }
+    acFields.forEach(f => {
+      suggestions[f.key] = [...new Set(
+        allEntries.map(e => e.data?.[f.key]).filter(Boolean)
+      )].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    });
+  }
+
+  return suggestions;
+}
+
 // ─── Form field builder ───────────────────────────────────────────────────────
 
-function buildField(field) {
+function buildField(field, suggestions = {}) {
   const labelClass = field.optional ? 'form-label optional' : 'form-label';
   const required = field.optional ? '' : 'required';
   const placeholder = field.placeholder || '';
@@ -499,6 +539,20 @@ function buildField(field) {
         <label class="${labelClass}" for="f-${field.key}">${field.label}</label>
         <textarea class="form-textarea" id="f-${field.key}" name="${field.key}"
           placeholder="${placeholder}" ${required}></textarea>
+      </div>`;
+  }
+
+  if (field.type === 'text' && field.autocomplete) {
+    const listId = `list-${field.key}`;
+    const opts = (suggestions[field.key] || [])
+      .map(v => `<option value="${esc(v)}">`)
+      .join('');
+    return `
+      <div class="form-group">
+        <label class="${labelClass}" for="f-${field.key}">${field.label}</label>
+        <input class="form-input" type="text" id="f-${field.key}" name="${field.key}"
+          placeholder="${placeholder}" list="${listId}" autocomplete="off" ${required}>
+        <datalist id="${listId}">${opts}</datalist>
       </div>`;
   }
 
