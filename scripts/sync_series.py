@@ -114,23 +114,28 @@ def main():
             None
         )
 
+        # Todos os episodios (para validacao de temporada/episodio no formulario)
+        items = [
+            f"{e['season']}x{str(e['episode_number']).zfill(2)} - {e['title']}"
+            for e in all_episodes
+        ]
+
+        # Proximo episodio nao assistido (para pre-preenchimento do formulario)
         if first_unwatched_idx is None:
-            # Todos assistidos
-            items = []
-            label = "todos assistidos"
+            metadata = {}
+            label = f"{len(all_episodes)} ep(s), todos assistidos"
         else:
-            remaining = all_episodes[first_unwatched_idx:]
-            items = [
-                f"{e['season']}x{str(e['episode_number']).zfill(2)} - {e['title']}"
-                for e in remaining
-            ]
-            watched_count = first_unwatched_idx
-            label = f"{watched_count} assistidos, sugere a partir de {items[0][:20]}..."
+            next_ep = all_episodes[first_unwatched_idx]
+            metadata = {
+                "next_season":  next_ep["season"],
+                "next_episode": next_ep["episode_number"],
+            }
+            label = f"{len(all_episodes)} ep(s), proximo: {next_ep['season']}x{str(next_ep['episode_number']).zfill(2)}"
 
         payload = {
             "category": "serie",
             "name": name,
-            "metadata": {},
+            "metadata": metadata,
             "items": items,
         }
 

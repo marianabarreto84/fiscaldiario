@@ -547,6 +547,17 @@ function renderHeader() {
   document.getElementById('next-day').disabled = currentDate >= today;
 }
 
+function downloadDayJson() {
+  if (entries.length === 0) { showToast('Nenhum registro para baixar'); return; }
+  const dateKey = toDateKey(currentDate);
+  const blob = new Blob([JSON.stringify(entries, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `diario-${dateKey}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 // ─── Render: entries ──────────────────────────────────────────────────────────
 
 function renderEntries() {
@@ -785,11 +796,12 @@ function setupEntertainmentListeners(initialData = {}) {
     const maxSeason = Math.max(...Object.keys(seasons).map(Number));
     if (tempEl) tempEl.max = maxSeason;
 
-    if (prefill && entry.items.length > 0) {
-      const m = entry.items[0].match(/^(\d+)x(\d+)/);
-      if (m) {
-        if (tempEl && !tempEl.value)   tempEl.value = parseInt(m[1]);
-        if (epNumEl && !epNumEl.value) epNumEl.value = parseInt(m[2]);
+    if (prefill) {
+      const ns = entry.metadata?.next_season;
+      const ne = entry.metadata?.next_episode;
+      if (ns != null && ne != null) {
+        if (tempEl && !tempEl.value)   tempEl.value = ns;
+        if (epNumEl && !epNumEl.value) epNumEl.value = ne;
       }
     }
 
@@ -1150,6 +1162,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Date navigation
   document.getElementById('prev-day').addEventListener('click', () => goDay(-1));
   document.getElementById('next-day').addEventListener('click', () => goDay(1));
+  document.getElementById('download-day').addEventListener('click', downloadDayJson);
 
   // FAB & modal
   document.getElementById('fab').addEventListener('click', openModal);
