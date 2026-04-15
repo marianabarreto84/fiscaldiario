@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#faf7f2">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Diário</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="config.js"></script>
+</head>
+<body>
+  <div id="app">
+
+    <!-- Header -->
+    <header class="header">
+      <button class="nav-btn" id="prev-day" aria-label="Dia anterior">‹</button>
+      <div class="date-display">
+        <span class="date-label" id="date-label">Hoje</span>
+        <span class="date-full" id="date-full"></span>
+      </div>
+      <button class="nav-btn" id="next-day" aria-label="Próximo dia">›</button>
+    </header>
+
+    <!-- Storage badge -->
+    <div id="storage-badge" class="storage-badge"></div>
+
+    <!-- Entries list -->
+    <main class="main" id="entries-list"></main>
+
+    <!-- FAB -->
+    <button class="fab" id="fab" aria-label="Adicionar registro">+</button>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-backdrop" id="modal-backdrop"></div>
+      <div class="modal-sheet">
+        <div class="modal-handle"></div>
+
+        <!-- Step 1: Type selection -->
+        <div class="modal-step" id="step-type">
+          <div class="modal-header">
+            <h2>O que quer registrar?</h2>
+            <button class="modal-close" id="modal-close" aria-label="Fechar">×</button>
+          </div>
+          <div class="type-grid" id="type-grid"></div>
+        </div>
+
+        <!-- Step 2: Entry form -->
+        <div class="modal-step hidden" id="step-form">
+          <div class="modal-header">
+            <button class="back-btn" id="back-btn" type="button">← Voltar</button>
+            <h2 id="form-title"></h2>
+            <button class="modal-close" id="modal-close-2" aria-label="Fechar">×</button>
+          </div>
+          <form id="entry-form" class="form-scroll" novalidate>
+            <div id="form-fields"></div>
+            <div class="custom-fields-section">
+              <div id="custom-fields-list"></div>
+              <button type="button" id="add-custom-field" class="add-field-btn">
+                + Adicionar campo personalizado
+              </button>
+            </div>
+            <button type="submit" class="submit-btn" id="submit-btn">Salvar</button>
+          </form>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
