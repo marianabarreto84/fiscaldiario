@@ -20,6 +20,8 @@ const ENTRY_TYPES = {
     fields: [
       { key: 'artista', label: 'Artista', type: 'text', autocomplete: true },
       { key: 'album', label: 'Álbum / Música / Playlist', type: 'text', autocomplete: true },
+      { key: 'de_faixa', label: 'De faixa', type: 'text', optional: true, catalogRef: { category: 'album', sourceField: 'album' } },
+      { key: 'ate_faixa', label: 'Até faixa', type: 'text', optional: true, catalogRef: { category: 'album', sourceField: 'album' } },
       { key: 'contexto', label: 'Contexto', type: 'text', placeholder: 'indo para o trabalho', optional: true },
     ],
   },
@@ -30,7 +32,7 @@ const ENTRY_TYPES = {
     fields: [
       { key: 'tipo', label: 'Tipo', type: 'select', options: ['Série', 'Filme', 'Documentário', 'Anime', 'Outro'] },
       { key: 'titulo', label: 'Título', type: 'text', autocomplete: true },
-      { key: 'episodio', label: 'Episódio', type: 'text', placeholder: '1x03', optional: true },
+      { key: 'episodio', label: 'Episódio', type: 'text', optional: true, catalogRef: { category: 'serie', sourceField: 'titulo' } },
       { key: 'periodo', label: 'Período', type: 'select', options: ['Manhã', 'Tarde', 'Noite'], optional: true },
     ],
   },
@@ -93,6 +95,9 @@ let db = null;          // Supabase client or null
 let selectedType = null;
 let editingEntry = null;
 let sortableInstance = null;
+let catalogItems = [];
+let editingCatalogItem = null;
+let catalogCategory = 'album';
 
 // ─── Supabase init ────────────────────────────────────────────────────────────
 
@@ -295,6 +300,217 @@ async function updatePositions(newOrder) {
   }
 }
 
+// ─── Catalog: load ────────────────────────────────────────────────────────────
+
+async function loadCatalog() {
+  if (db) {
+    const { data } = await db
+      .from('catalog')
+      .select('*')
+      .order('name', { ascending: true });
+    catalogItems = data || [];
+  } else {
+    const raw = localStorage.getItem('diary_catalog');
+    catalogItems = raw ? JSON.parse(raw) : [];
+  }
+}
+
+function getCatalogEntry(category, name) {
+  if (!name) return null;
+  return catalogItems.find(
+    c => c.category === category && c.name.toLowerCase() === name.toLowerCase()
+  ) || null;
+}
+
+// ─── Catalog: save ────────────────────────────────────────────────────────────
+
+async function saveCatalogItem(category, name, metadata, items) {
+  const payload = { category, name, metadata, items };
+
+  if (editingCatalogItem) {
+    if (db) {
+      const { error } = await db.from('catalog').update(payload).eq('id', editingCatalogItem.id);
+      if (error) throw error;
+    }
+    const idx = catalogItems.findIndex(c => c.id === editingCatalogItem.id);
+    if (idx !== -1) catalogItems[idx] = { ...editingCatalogItem, ...payload };
+  } else {
+    if (db) {
+      const { data, error } = await db.from('catalog').insert(payload).select().single();
+      if (error) throw error;
+      catalogItems.push(data);
+    } else {
+      payload.id = crypto.randomUUID();
+      payload.created_at = new Date().toISOString();
+      catalogItems.push(payload);
+    }
+  }
+
+  if (!db) localStorage.setItem('diary_catalog', JSON.stringify(catalogItems));
+}
+
+// ─── Catalog: delete ──────────────────────────────────────────────────────────
+
+async function deleteCatalogItem(id) {
+  if (db) {
+    const { error } = await db.from('catalog').delete().eq('id', id);
+    if (error) throw error;
+  }
+  catalogItems = catalogItems.filter(c => c.id !== id);
+  if (!db) localStorage.setItem('diary_catalog', JSON.stringify(catalogItems));
+}
+
+// ─── Settings view ────────────────────────────────────────────────────────────
+
+async function showSettings() {
+  await loadCatalog();
+  document.getElementById('settings-view').classList.remove('hidden');
+  renderSettings();
+}
+
+function hideSettings() {
+  document.getElementById('settings-view').classList.add('hidden');
+}
+
+function renderSettings() {
+  const content = document.getElementById('settings-content');
+  content.innerHTML =
+    renderCatalogSection('album', '🎵 Álbuns') +
+    renderCatalogSection('serie', '📺 Séries');
+
+  content.querySelectorAll('.add-catalog-btn').forEach(btn =>
+    btn.addEventListener('click', () => openCatalogModal(btn.dataset.category))
+  );
+
+  content.querySelectorAll('.catalog-edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = catalogItems.find(c => c.id === btn.dataset.id);
+      if (item) openCatalogModal(item.category, item);
+    });
+  });
+
+  content.querySelectorAll('.catalog-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (confirm('Remover este item do catálogo?')) {
+        await deleteCatalogItem(btn.dataset.id);
+        renderSettings();
+        showToast('Removido');
+      }
+    });
+  });
+}
+
+function renderCatalogSection(category, title) {
+  const items = catalogItems.filter(c => c.category === category);
+  const singular = category === 'album' ? 'álbum' : 'série';
+
+  const cards = items.map(item => {
+    const meta = category === 'album' ? item.metadata?.artist : null;
+    const count = item.items?.length || 0;
+    const unit = category === 'album' ? 'faixas' : 'episódios';
+    const subtitle = [meta, `${count} ${unit}`].filter(Boolean).join(' · ');
+    return `
+      <div class="catalog-card">
+        <div class="catalog-card-info">
+          <div class="catalog-card-name">${esc(item.name)}</div>
+          <div class="catalog-card-meta">${esc(subtitle)}</div>
+        </div>
+        <div class="entry-actions">
+          <button class="entry-edit catalog-edit-btn" data-id="${item.id}">✏</button>
+          <button class="entry-delete catalog-delete-btn" data-id="${item.id}">×</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="catalog-section">
+      <div class="catalog-section-header">
+        <h2 class="catalog-section-title">${title}</h2>
+        <button class="add-catalog-btn" data-category="${category}">+ Adicionar ${singular}</button>
+      </div>
+      ${items.length === 0
+        ? `<p class="catalog-empty">Nenhum ${singular} cadastrado ainda.</p>`
+        : cards}
+    </div>`;
+}
+
+// ─── Catalog modal ────────────────────────────────────────────────────────────
+
+function openCatalogModal(category, existing = null) {
+  editingCatalogItem = existing;
+  catalogCategory = category;
+
+  const isAlbum = category === 'album';
+  document.getElementById('catalog-modal-title').textContent =
+    existing
+      ? (isAlbum ? 'Editar álbum' : 'Editar série')
+      : (isAlbum ? 'Novo álbum' : 'Nova série');
+
+  const itemsPlaceholder = isAlbum
+    ? 'Airbag\nParanoid Android\nSubterranean Homesick Alien'
+    : '1x01 - Pilot\n1x02 - ...';
+
+  document.getElementById('catalog-form-fields').innerHTML = `
+    <div class="form-group">
+      <label class="form-label">Nome${isAlbum ? ' do álbum' : ' da série'}</label>
+      <input class="form-input" type="text" id="cat-name" required
+        value="${esc(existing?.name || '')}">
+    </div>
+    ${isAlbum ? `
+    <div class="form-group">
+      <label class="form-label optional">Artista</label>
+      <input class="form-input" type="text" id="cat-artist"
+        value="${esc(existing?.metadata?.artist || '')}">
+    </div>` : ''}
+    <div class="form-group">
+      <label class="form-label">${isAlbum ? 'Faixas' : 'Episódios'} <small style="font-weight:400;text-transform:none">(um por linha)</small></label>
+      <textarea class="form-textarea" id="cat-items" style="min-height:160px" required
+        placeholder="${itemsPlaceholder}">${esc((existing?.items || []).join('\n'))}</textarea>
+    </div>`;
+
+  document.getElementById('catalog-modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => document.getElementById('cat-name').focus(), 80);
+}
+
+function closeCatalogModal() {
+  document.getElementById('catalog-modal').classList.add('hidden');
+  document.body.style.overflow = '';
+  editingCatalogItem = null;
+}
+
+async function handleCatalogSubmit(e) {
+  e.preventDefault();
+
+  const name = document.getElementById('cat-name').value.trim();
+  if (!name) return;
+
+  const artistEl = document.getElementById('cat-artist');
+  const metadata = catalogCategory === 'album' && artistEl
+    ? { artist: artistEl.value.trim() }
+    : {};
+
+  const items = document.getElementById('cat-items').value
+    .split('\n').map(l => l.trim()).filter(Boolean);
+
+  const btn = document.getElementById('catalog-submit');
+  btn.disabled = true;
+  btn.textContent = 'Salvando…';
+
+  try {
+    await saveCatalogItem(catalogCategory, name, metadata, items);
+    closeCatalogModal();
+    renderSettings();
+    showToast('Salvo!');
+  } catch (err) {
+    console.error(err);
+    showToast('Erro ao salvar');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Salvar';
+}
+
 // ─── Render: header ───────────────────────────────────────────────────────────
 
 function renderHeader() {
@@ -411,6 +627,10 @@ function renderCardContent(entry, typeDef) {
       const lines = [];
       if (d.artista) lines.push(`<strong>${esc(d.artista)}</strong>`);
       if (d.album) lines.push(esc(d.album));
+      if (d.de_faixa || d.ate_faixa) {
+        const range = [d.de_faixa, d.ate_faixa].filter(Boolean).map(esc).join(' → ');
+        lines.push(`<span class="entry-muted">${range}</span>`);
+      }
       if (d.contexto) lines.push(`<span class="entry-muted">${esc(d.contexto)}</span>`);
       return lines.join('<br>');
     }
@@ -532,6 +752,21 @@ async function showFormStep(type, initialData = {}, initialCustomFields = {}) {
   document.getElementById('custom-fields-list').innerHTML = '';
   Object.entries(initialCustomFields).forEach(([k, v]) => addCustomField(k, v));
 
+  // Bind catalog-driven datalists
+  typeDef.fields.filter(f => f.catalogRef).forEach(f => {
+    const sourceEl = document.getElementById(`f-${f.catalogRef.sourceField}`);
+    const targetList = document.getElementById(`list-${f.key}`);
+    if (!sourceEl || !targetList) return;
+    const update = () => {
+      const entry = getCatalogEntry(f.catalogRef.category, sourceEl.value.trim());
+      targetList.innerHTML = (entry?.items || [])
+        .map(t => `<option value="${esc(t)}">`)
+        .join('');
+    };
+    sourceEl.addEventListener('input', update);
+    update();
+  });
+
   setTimeout(() => {
     const first = document.querySelector('#form-fields input, #form-fields select, #form-fields textarea');
     if (first) first.focus();
@@ -603,6 +838,17 @@ function buildField(field, suggestions = {}) {
         <label class="${labelClass}" for="f-${field.key}">${field.label}</label>
         <textarea class="form-textarea" id="f-${field.key}" name="${field.key}"
           placeholder="${placeholder}" ${required}></textarea>
+      </div>`;
+  }
+
+  if (field.catalogRef) {
+    const listId = `list-${field.key}`;
+    return `
+      <div class="form-group">
+        <label class="${labelClass}" for="f-${field.key}">${field.label}</label>
+        <input class="form-input" type="text" id="f-${field.key}" name="${field.key}"
+          placeholder="${placeholder}" list="${listId}" autocomplete="off" ${required}>
+        <datalist id="${listId}"></datalist>
       </div>`;
   }
 
@@ -777,9 +1023,18 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('entry-form').addEventListener('submit', handleSubmit);
   document.getElementById('add-custom-field').addEventListener('click', addCustomField);
 
+  // Settings
+  document.getElementById('open-settings').addEventListener('click', showSettings);
+  document.getElementById('settings-back').addEventListener('click', hideSettings);
+
+  // Catalog modal
+  document.getElementById('catalog-backdrop').addEventListener('click', closeCatalogModal);
+  document.getElementById('catalog-cancel').addEventListener('click', closeCatalogModal);
+  document.getElementById('catalog-form').addEventListener('submit', handleCatalogSubmit);
+
   // Keyboard
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') { closeModal(); closeCatalogModal(); }
   });
 
   // Load today
