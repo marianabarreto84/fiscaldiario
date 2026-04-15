@@ -635,6 +635,12 @@ body {
 
 .settings-btn:hover { opacity: 1; }
 
+.download-btn {
+  opacity: 0.6;
+}
+
+.download-btn:hover { opacity: 1; }
+
 /* ─── Page view (full-screen overlay) ─── */
 
 .page-view {
