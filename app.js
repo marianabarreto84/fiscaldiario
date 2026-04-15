@@ -91,6 +91,7 @@ currentDate.setHours(0, 0, 0, 0);
 let entries = [];
 let db = null;          // Supabase client or null
 let selectedType = null;
+let sortableInstance = null;
 
 // ─── Supabase init ────────────────────────────────────────────────────────────
 
@@ -161,6 +162,7 @@ async function loadEntries(date) {
         .from('log_entries')
         .select('*')
         .eq('date', toDateKey(date))
+        .order('position', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -187,6 +189,7 @@ async function saveEntry(type, data, customFields) {
     type,
     data,
     custom_fields: customFields,
+    position: entries.length,
     created_at: new Date().toISOString(),
   };
 
@@ -243,6 +246,23 @@ async function deleteEntry(id) {
   }
 }
 
+// ─── Storage: reorder ─────────────────────────────────────────────────────────
+
+async function updatePositions(newOrder) {
+  // Reorder local array
+  entries = newOrder.map(id => entries.find(e => e.id === id)).filter(Boolean);
+
+  if (db) {
+    await Promise.all(
+      newOrder.map((id, index) =>
+        db.from('log_entries').update({ position: index }).eq('id', id)
+      )
+    );
+  } else {
+    localStorage.setItem(`diary_${toDateKey(currentDate)}`, JSON.stringify(entries));
+  }
+}
+
 // ─── Render: header ───────────────────────────────────────────────────────────
 
 function renderHeader() {
@@ -278,6 +298,26 @@ function renderEntries() {
       }
     });
   });
+
+  // Drag and drop
+  if (sortableInstance) {
+    sortableInstance.destroy();
+    sortableInstance = null;
+  }
+
+  if (entries.length > 1) {
+    sortableInstance = Sortable.create(container, {
+      handle: '.drag-handle',
+      animation: 150,
+      ghostClass: 'card-ghost',
+      onEnd(evt) {
+        if (evt.oldIndex === evt.newIndex) return;
+        const cards = container.querySelectorAll('.entry-card');
+        const newOrder = Array.from(cards).map(c => c.dataset.id);
+        updatePositions(newOrder);
+      },
+    });
+  }
 }
 
 function renderCard(entry) {
@@ -297,7 +337,8 @@ function renderCard(entry) {
   }
 
   return `
-    <div class="entry-card" style="--type-color:${typeDef.color}">
+    <div class="entry-card" data-id="${entry.id}" style="--type-color:${typeDef.color}">
+      <div class="drag-handle" aria-hidden="true">⠿</div>
       <div class="entry-icon">${typeDef.icon}</div>
       <div class="entry-body">
         <div class="entry-header">

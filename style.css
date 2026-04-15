@@ -151,6 +151,28 @@ body {
   animation: slideIn 0.2s ease;
 }
 
+.drag-handle {
+  flex-shrink: 0;
+  cursor: grab;
+  color: var(--border);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 2px 2px 0;
+  margin-right: 2px;
+  user-select: none;
+  -webkit-user-select: none;
+  display: flex;
+  align-items: center;
+  touch-action: none;
+}
+
+.drag-handle:active { cursor: grabbing; }
+
+.card-ghost {
+  opacity: 0.35;
+  background: var(--surface-2);
+}
+
 .entry-card::before {
   content: '';
   position: absolute;
