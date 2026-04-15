@@ -30,6 +30,12 @@ jobs:
           echo "window.SUPABASE_URL = '${SUPABASE_URL}';" > config.js
           echo "window.SUPABASE_KEY = '${SUPABASE_KEY}';" >> config.js
 
+      - name: Bust cache
+        run: |
+          VERSION=$(date +%s)
+          sed -i "s/style\.css/style.css?v=${VERSION}/g" index.html
+          sed -i "s/app\.js/app.js?v=${VERSION}/g" index.html
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
