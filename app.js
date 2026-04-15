@@ -1357,4 +1357,5 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load today
   renderHeader();
   loadEntries(currentDate);
+  loadCatalog();
 });
