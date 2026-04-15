@@ -30,10 +30,12 @@ const ENTRY_TYPES = {
     label: 'Série / Filme',
     color: '#8e44ad',
     fields: [
-      { key: 'tipo', label: 'Tipo', type: 'select', options: ['Série', 'Filme', 'Documentário', 'Anime', 'Outro'] },
-      { key: 'titulo', label: 'Título', type: 'text', autocomplete: true },
-      { key: 'episodio', label: 'Episódio', type: 'text', optional: true, catalogRef: { category: 'serie', sourceField: 'titulo' } },
-      { key: 'periodo', label: 'Período', type: 'select', options: ['Manhã', 'Tarde', 'Noite'], optional: true },
+      { key: 'tipo',            label: 'Tipo',               type: 'select', options: ['Série', 'Filme', 'Documentário', 'Anime', 'Outro'] },
+      { key: 'titulo',          label: 'Título',             type: 'text', autocomplete: true },
+      { key: 'temporada',       label: 'Temporada',          type: 'number', min: '1', optional: true, seriesOnly: true },
+      { key: 'episodio_numero', label: 'Episódio',           type: 'number', min: '1', optional: true, seriesOnly: true },
+      { key: 'episodio_titulo', label: 'Título do episódio', type: 'text',   optional: true, seriesOnly: true },
+      { key: 'periodo',         label: 'Período',            type: 'select', options: ['Manhã', 'Tarde', 'Noite'], optional: true },
     ],
   },
   trabalho: {
@@ -298,6 +300,28 @@ async function updatePositions(newOrder) {
   } else {
     localStorage.setItem(`diary_${toDateKey(currentDate)}`, JSON.stringify(entries));
   }
+}
+
+// ─── Catalog: series helpers ─────────────────────────────────────────────────
+
+// { '1': {min:1, max:24}, '2': {min:1, max:26}, ... }
+function parseCatalogSeasons(items) {
+  const seasons = {};
+  for (const item of (items || [])) {
+    const m = item.match(/^(\d+)x(\d+)/);
+    if (!m) continue;
+    const s = m[1];
+    const e = parseInt(m[2]);
+    if (!seasons[s]) seasons[s] = { min: e, max: e };
+    else { seasons[s].min = Math.min(seasons[s].min, e); seasons[s].max = Math.max(seasons[s].max, e); }
+  }
+  return seasons;
+}
+
+function findEpisodeTitle(items, season, episode) {
+  const prefix = `${season}x${String(episode).padStart(2, '0')} - `;
+  const found = (items || []).find(item => item.startsWith(prefix));
+  return found ? found.slice(prefix.length) : null;
 }
 
 // ─── Catalog: load ────────────────────────────────────────────────────────────
@@ -636,12 +660,24 @@ function renderCardContent(entry, typeDef) {
     }
 
     case 'entretenimento': {
-      const parts = [];
-      if (d.tipo) parts.push(esc(d.tipo));
-      if (d.titulo) parts.push(`<strong>${esc(d.titulo)}</strong>`);
-      if (d.episodio) parts.push(esc(d.episodio));
-      if (d.periodo) parts.push(`<span class="entry-muted">${esc(d.periodo)}</span>`);
-      return parts.join(' · ');
+      const lines = [];
+      const header = [d.tipo, d.titulo ? `<strong>${esc(d.titulo)}</strong>` : null].filter(Boolean).join(' · ');
+      if (header) lines.push(header);
+
+      // Novo formato: temporada + episodio_numero + episodio_titulo
+      if (d.temporada || d.episodio_numero) {
+        const epParts = [];
+        if (d.temporada)       epParts.push(`T${esc(String(d.temporada))}`);
+        if (d.episodio_numero) epParts.push(`Ep ${esc(String(d.episodio_numero))}`);
+        if (d.episodio_titulo) epParts.push(esc(d.episodio_titulo));
+        lines.push(`<span class="entry-muted">${epParts.join(' · ')}</span>`);
+      } else if (d.episodio) {
+        // Retrocompatibilidade com entradas antigas
+        lines.push(`<span class="entry-muted">${esc(d.episodio)}</span>`);
+      }
+
+      if (d.periodo) lines.push(`<span class="entry-muted">${esc(d.periodo)}</span>`);
+      return lines.join('<br>');
     }
 
     case 'trabalho': {
@@ -693,6 +729,98 @@ function esc(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// ─── Entertainment form logic ─────────────────────────────────────────────────
+
+function setupEntertainmentListeners(initialData = {}) {
+  const tipoEl    = document.getElementById('f-tipo');
+  const tituloEl  = document.getElementById('f-titulo');
+  const tempEl    = document.getElementById('f-temporada');
+  const epNumEl   = document.getElementById('f-episodio_numero');
+  const epTitleEl = document.getElementById('f-episodio_titulo');
+  const groups    = document.querySelectorAll('.series-field-group');
+
+  const isSeries = () => ['Série', 'Anime'].includes(tipoEl?.value);
+
+  const showHide = () => {
+    groups.forEach(g => g.style.display = isSeries() ? '' : 'none');
+  };
+
+  const getSeasons = () => {
+    const entry = getCatalogEntry('serie', tituloEl?.value?.trim() || '');
+    return entry ? parseCatalogSeasons(entry.items) : null;
+  };
+
+  const applyEpisodeConstraints = (seasons, season) => {
+    if (!epNumEl) return;
+    const info = seasons?.[String(season)];
+    if (info) {
+      epNumEl.min = info.min;
+      epNumEl.max = info.max;
+    } else {
+      epNumEl.removeAttribute('max');
+      epNumEl.min = 1;
+    }
+  };
+
+  const fillEpisodeTitle = () => {
+    if (!epTitleEl || !tempEl || !epNumEl || epTitleEl._userEdited) return;
+    const entry = getCatalogEntry('serie', tituloEl?.value?.trim() || '');
+    if (!entry) return;
+    const title = findEpisodeTitle(entry.items, tempEl.value, epNumEl.value);
+    if (title) epTitleEl.value = title;
+    else if (!epTitleEl._userEdited) epTitleEl.value = '';
+  };
+
+  const applyFromCatalog = (prefill) => {
+    const entry = getCatalogEntry('serie', tituloEl?.value?.trim() || '');
+    if (!entry || !entry.items.length) {
+      if (tempEl) tempEl.removeAttribute('max');
+      if (epNumEl) epNumEl.removeAttribute('max');
+      return;
+    }
+
+    const seasons = parseCatalogSeasons(entry.items);
+    const maxSeason = Math.max(...Object.keys(seasons).map(Number));
+    if (tempEl) tempEl.max = maxSeason;
+
+    if (prefill && entry.items.length > 0) {
+      const m = entry.items[0].match(/^(\d+)x(\d+)/);
+      if (m) {
+        if (tempEl && !tempEl.value)   tempEl.value = parseInt(m[1]);
+        if (epNumEl && !epNumEl.value) epNumEl.value = parseInt(m[2]);
+      }
+    }
+
+    applyEpisodeConstraints(seasons, tempEl?.value);
+    fillEpisodeTitle();
+  };
+
+  // Bind events
+  tipoEl?.addEventListener('change', () => {
+    showHide();
+    if (isSeries()) applyFromCatalog(true);
+  });
+
+  tituloEl?.addEventListener('input', () => {
+    if (isSeries()) applyFromCatalog(true);
+  });
+
+  tempEl?.addEventListener('input', () => {
+    const seasons = getSeasons();
+    applyEpisodeConstraints(seasons, tempEl.value);
+    if (epNumEl) epNumEl.value = '';
+    if (epTitleEl) { epTitleEl.value = ''; epTitleEl._userEdited = false; }
+  });
+
+  epNumEl?.addEventListener('input', fillEpisodeTitle);
+
+  epTitleEl?.addEventListener('input', () => { epTitleEl._userEdited = true; });
+
+  // Initial state
+  showHide();
+  if (isSeries()) applyFromCatalog(false);
 }
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
@@ -751,6 +879,9 @@ async function showFormStep(type, initialData = {}, initialCustomFields = {}) {
   // Pre-fill custom fields
   document.getElementById('custom-fields-list').innerHTML = '';
   Object.entries(initialCustomFields).forEach(([k, v]) => addCustomField(k, v));
+
+  // Entertainment-specific dynamic behavior
+  if (type === 'entretenimento') setupEntertainmentListeners(initialData);
 
   // Bind catalog-driven datalists
   typeDef.fields.filter(f => f.catalogRef).forEach(f => {
@@ -816,6 +947,14 @@ async function loadSuggestions(type) {
 // ─── Form field builder ───────────────────────────────────────────────────────
 
 function buildField(field, suggestions = {}) {
+  const html = buildFieldInner(field, suggestions);
+  if (field.seriesOnly) {
+    return `<div class="series-field-group" style="display:none">${html}</div>`;
+  }
+  return html;
+}
+
+function buildFieldInner(field, suggestions = {}) {
   const labelClass = field.optional ? 'form-label optional' : 'form-label';
   const required = field.optional ? '' : 'required';
   const placeholder = field.placeholder || '';
