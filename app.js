@@ -30,7 +30,7 @@ const ENTRY_TYPES = {
     fields: [
       { key: 'tipo', label: 'Tipo', type: 'select', options: ['Série', 'Filme', 'Documentário', 'Anime', 'Outro'] },
       { key: 'titulo', label: 'Título', type: 'text', autocomplete: true },
-      { key: 'episodio', label: 'Episódio', type: 'text', placeholder: 'S01E03', optional: true },
+      { key: 'episodio', label: 'Episódio', type: 'text', placeholder: '1x03', optional: true },
       { key: 'periodo', label: 'Período', type: 'select', options: ['Manhã', 'Tarde', 'Noite'], optional: true },
     ],
   },
@@ -39,7 +39,7 @@ const ENTRY_TYPES = {
     label: 'Trabalho',
     color: '#27ae60',
     fields: [
-      { key: 'horas', label: 'Horas trabalhadas', type: 'number', step: '0.5', placeholder: '5' },
+      { key: 'horas', label: 'Horas trabalhadas', type: 'text', placeholder: '5h26min' },
       { key: 'descricao', label: 'Descrição', type: 'textarea', placeholder: 'No que você trabalhou?', optional: true },
     ],
   },
@@ -384,7 +384,7 @@ function renderCardContent(entry, typeDef) {
 
     case 'trabalho': {
       const parts = [];
-      if (d.horas) parts.push(`<strong>${esc(String(d.horas))}h</strong> trabalhadas`);
+      if (d.horas) parts.push(`<strong>${esc(String(d.horas))}</strong> trabalhadas`);
       if (d.descricao) parts.push(`<br><span class="entry-muted">${esc(d.descricao)}</span>`);
       return parts.join('');
     }
