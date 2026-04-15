@@ -96,15 +96,12 @@ let selectedType = null;
 
 function initStorage() {
   const badge = document.getElementById('storage-badge');
+  const url = window.SUPABASE_URL;
+  const key = window.SUPABASE_KEY;
 
-  if (
-    window.SUPABASE_URL &&
-    window.SUPABASE_KEY &&
-    window.SUPABASE_URL.trim() !== '' &&
-    window.SUPABASE_KEY.trim() !== ''
-  ) {
+  if (url && key && url.trim() !== '' && key.trim() !== '') {
     try {
-      db = supabase.createClient(window.SUPABASE_URL.trim(), window.SUPABASE_KEY.trim());
+      db = supabase.createClient(url.trim(), key.trim());
       badge.className = 'storage-badge cloud';
       badge.textContent = '☁ Supabase';
       return;
