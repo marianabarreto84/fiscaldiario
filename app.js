@@ -91,6 +91,7 @@ currentDate.setHours(0, 0, 0, 0);
 let entries = [];
 let db = null;          // Supabase client or null
 let selectedType = null;
+let editingEntry = null;
 let sortableInstance = null;
 
 // ─── Supabase init ────────────────────────────────────────────────────────────
@@ -246,6 +247,37 @@ async function deleteEntry(id) {
   }
 }
 
+// ─── Storage: update ─────────────────────────────────────────────────────────
+
+async function updateEntry(id, data, customFields) {
+  try {
+    if (db) {
+      const { error } = await db
+        .from('log_entries')
+        .update({ data, custom_fields: customFields })
+        .eq('id', id);
+      if (error) throw error;
+    }
+
+    const idx = entries.findIndex(e => e.id === id);
+    if (idx !== -1) {
+      entries[idx] = { ...entries[idx], data, custom_fields: customFields };
+    }
+
+    if (!db) {
+      localStorage.setItem(`diary_${toDateKey(currentDate)}`, JSON.stringify(entries));
+    }
+
+    renderEntries();
+    showToast('Atualizado!');
+    return true;
+  } catch (err) {
+    console.error('Update error:', err);
+    showToast('Erro ao atualizar');
+    return false;
+  }
+}
+
 // ─── Storage: reorder ─────────────────────────────────────────────────────────
 
 async function updatePositions(newOrder) {
@@ -290,6 +322,13 @@ function renderEntries() {
   }
 
   container.innerHTML = entries.map(renderCard).join('');
+
+  container.querySelectorAll('.entry-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const entry = entries.find(e => e.id === btn.dataset.id);
+      if (entry) openEditModal(entry);
+    });
+  });
 
   container.querySelectorAll('.entry-delete').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -347,7 +386,10 @@ function renderCard(entry) {
         </div>
         <div class="entry-content">${content}</div>
       </div>
-      <button class="entry-delete" data-id="${entry.id}" aria-label="Remover">×</button>
+      <div class="entry-actions">
+        <button class="entry-edit" data-id="${entry.id}" aria-label="Editar">✏</button>
+        <button class="entry-delete" data-id="${entry.id}" aria-label="Remover">×</button>
+      </div>
     </div>`;
 }
 
@@ -437,15 +479,25 @@ function esc(str) {
 
 function openModal() {
   selectedType = null;
+  editingEntry = null;
   document.getElementById('modal').classList.remove('hidden');
   showTypeStep();
   document.body.style.overflow = 'hidden';
+}
+
+function openEditModal(entry) {
+  editingEntry = entry;
+  selectedType = entry.type;
+  document.getElementById('modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  showFormStep(entry.type, entry.data, entry.custom_fields);
 }
 
 function closeModal() {
   document.getElementById('modal').classList.add('hidden');
   document.body.style.overflow = '';
   selectedType = null;
+  editingEntry = null;
   document.getElementById('entry-form').reset();
   document.getElementById('custom-fields-list').innerHTML = '';
 }
@@ -455,18 +507,30 @@ function showTypeStep() {
   document.getElementById('step-form').classList.add('hidden');
 }
 
-async function showFormStep(type) {
+async function showFormStep(type, initialData = {}, initialCustomFields = {}) {
   selectedType = type;
   const typeDef = ENTRY_TYPES[type];
 
   document.getElementById('step-type').classList.add('hidden');
   document.getElementById('step-form').classList.remove('hidden');
   document.getElementById('form-title').textContent = `${typeDef.icon} ${typeDef.label}`;
+  document.getElementById('back-btn').style.visibility = editingEntry ? 'hidden' : '';
+  document.getElementById('submit-btn').textContent = editingEntry ? 'Atualizar' : 'Salvar';
 
   const suggestions = await loadSuggestions(type);
 
   document.getElementById('form-fields').innerHTML =
     typeDef.fields.map(f => buildField(f, suggestions)).join('');
+
+  // Pre-fill fields when editing
+  typeDef.fields.forEach(f => {
+    const el = document.getElementById(`f-${f.key}`);
+    if (el && initialData[f.key] != null) el.value = initialData[f.key];
+  });
+
+  // Pre-fill custom fields
+  document.getElementById('custom-fields-list').innerHTML = '';
+  Object.entries(initialCustomFields).forEach(([k, v]) => addCustomField(k, v));
 
   setTimeout(() => {
     const first = document.querySelector('#form-fields input, #form-fields select, #form-fields textarea');
@@ -569,7 +633,7 @@ function buildField(field, suggestions = {}) {
 
 // ─── Custom fields ────────────────────────────────────────────────────────────
 
-function addCustomField() {
+function addCustomField(key = '', value = '') {
   const list = document.getElementById('custom-fields-list');
   const row = document.createElement('div');
   row.className = 'custom-field-row';
@@ -578,9 +642,11 @@ function addCustomField() {
     <input class="form-input" type="text" placeholder="Valor" data-role="value">
     <button type="button" class="remove-field-btn" aria-label="Remover">×</button>`;
 
+  row.querySelector('[data-role="key"]').value = key;
+  row.querySelector('[data-role="value"]').value = value;
   row.querySelector('.remove-field-btn').addEventListener('click', () => row.remove());
   list.appendChild(row);
-  row.querySelector('[data-role="key"]').focus();
+  if (!key) row.querySelector('[data-role="key"]').focus();
 }
 
 function collectCustomFields() {
@@ -630,12 +696,14 @@ async function handleSubmit(e) {
 
   const btn = document.getElementById('submit-btn');
   btn.disabled = true;
-  btn.textContent = 'Salvando…';
+  btn.textContent = editingEntry ? 'Atualizando…' : 'Salvando…';
 
-  const ok = await saveEntry(selectedType, data, collectCustomFields());
+  const ok = editingEntry
+    ? await updateEntry(editingEntry.id, data, collectCustomFields())
+    : await saveEntry(selectedType, data, collectCustomFields());
 
   btn.disabled = false;
-  btn.textContent = 'Salvar';
+  btn.textContent = editingEntry ? 'Atualizar' : 'Salvar';
 
   if (ok) closeModal();
 }
