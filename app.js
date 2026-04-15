@@ -547,15 +547,99 @@ function renderHeader() {
   document.getElementById('next-day').disabled = currentDate >= today;
 }
 
-function downloadDayJson() {
-  if (entries.length === 0) { showToast('Nenhum registro para baixar'); return; }
-  const dateKey = toDateKey(currentDate);
-  const blob = new Blob([JSON.stringify(entries, null, 2)], { type: 'application/json' });
+// ─── Download modal ───────────────────────────────────────────────────────────
+
+function openDownloadModal() {
+  const singleEl = document.getElementById('dl-single-date');
+  const startEl  = document.getElementById('dl-start-date');
+  const endEl    = document.getElementById('dl-end-date');
+  const today    = toDateKey(currentDate);
+  singleEl.value = today;
+  startEl.value  = today;
+  endEl.value    = today;
+  setDownloadMode('day');
+  document.getElementById('download-modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDownloadModal() {
+  document.getElementById('download-modal').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+function setDownloadMode(mode) {
+  document.getElementById('download-day-fields').style.display   = mode === 'day'   ? '' : 'none';
+  document.getElementById('download-range-fields').style.display = mode === 'range' ? '' : 'none';
+  document.getElementById('mode-day').classList.toggle('active',   mode === 'day');
+  document.getElementById('mode-range').classList.toggle('active', mode === 'range');
+  document.getElementById('download-modal').dataset.mode = mode;
+}
+
+function triggerDownload(data, filename) {
+  if (!data.length) { showToast('Nenhum registro no período'); return; }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `diario-${dateKey}.json`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+async function confirmDownload() {
+  const mode = document.getElementById('download-modal').dataset.mode || 'day';
+
+  if (mode === 'day') {
+    const dateKey = document.getElementById('dl-single-date').value;
+    if (!dateKey) { showToast('Selecione uma data'); return; }
+
+    let data;
+    if (db) {
+      const { data: rows } = await db.from('log_entries').select('*')
+        .eq('date', dateKey)
+        .order('position', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true });
+      data = rows || [];
+    } else {
+      const raw = localStorage.getItem(`diary_${dateKey}`);
+      data = raw ? JSON.parse(raw) : [];
+    }
+
+    closeDownloadModal();
+    triggerDownload(data, `diario-${dateKey}.json`);
+
+  } else {
+    const start = document.getElementById('dl-start-date').value;
+    const end   = document.getElementById('dl-end-date').value;
+    if (!start || !end) { showToast('Selecione o período'); return; }
+    if (start > end)    { showToast('Data inicial maior que a final'); return; }
+
+    let data;
+    if (db) {
+      const { data: rows } = await db.from('log_entries').select('*')
+        .gte('date', start)
+        .lte('date', end)
+        .order('date', { ascending: true })
+        .order('position', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true });
+      data = rows || [];
+    } else {
+      data = [];
+      const s = new Date(start + 'T00:00:00');
+      const e = new Date(end   + 'T00:00:00');
+      for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+        const key = toDateKey(d);
+        const raw = localStorage.getItem(`diary_${key}`);
+        if (raw) data.push(...JSON.parse(raw));
+      }
+    }
+
+    const filename = start === end
+      ? `diario-${start}.json`
+      : `diario-${start}_${end}.json`;
+
+    closeDownloadModal();
+    triggerDownload(data, filename);
+  }
 }
 
 // ─── Render: entries ──────────────────────────────────────────────────────────
@@ -1162,7 +1246,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Date navigation
   document.getElementById('prev-day').addEventListener('click', () => goDay(-1));
   document.getElementById('next-day').addEventListener('click', () => goDay(1));
-  document.getElementById('download-day').addEventListener('click', downloadDayJson);
+  document.getElementById('download-day').addEventListener('click', openDownloadModal);
+  document.getElementById('download-cancel').addEventListener('click', closeDownloadModal);
+  document.getElementById('download-backdrop').addEventListener('click', closeDownloadModal);
+  document.getElementById('mode-day').addEventListener('click', () => setDownloadMode('day'));
+  document.getElementById('mode-range').addEventListener('click', () => setDownloadMode('range'));
+  document.getElementById('download-confirm').addEventListener('click', confirmDownload);
 
   // FAB & modal
   document.getElementById('fab').addEventListener('click', openModal);

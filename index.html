@@ -93,6 +93,38 @@
       <main class="main" id="settings-content"></main>
     </div>
 
+    <!-- Download Modal -->
+    <div id="download-modal" class="modal hidden" role="dialog">
+      <div class="modal-backdrop" id="download-backdrop"></div>
+      <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <div class="modal-step">
+          <div class="modal-header">
+            <button class="back-btn" id="download-cancel">Cancelar</button>
+            <h2>Baixar registros</h2>
+            <div style="width:32px"></div>
+          </div>
+          <div class="form-scroll">
+            <div class="download-mode-toggle">
+              <button type="button" class="mode-btn active" id="mode-day">Este dia</button>
+              <button type="button" class="mode-btn" id="mode-range">Período</button>
+            </div>
+            <div id="download-day-fields">
+              <label class="field-label">Data</label>
+              <input type="date" id="dl-single-date" class="field-input">
+            </div>
+            <div id="download-range-fields" style="display:none">
+              <label class="field-label">De</label>
+              <input type="date" id="dl-start-date" class="field-input">
+              <label class="field-label" style="margin-top:12px">Até</label>
+              <input type="date" id="dl-end-date" class="field-input">
+            </div>
+            <button type="button" class="submit-btn" id="download-confirm">Baixar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Catalog Item Modal -->
     <div id="catalog-modal" class="modal hidden" role="dialog">
       <div class="modal-backdrop" id="catalog-backdrop"></div>

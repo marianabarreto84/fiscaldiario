@@ -641,6 +641,33 @@ body {
 
 .download-btn:hover { opacity: 1; }
 
+/* ─── Download modal ─── */
+
+.download-mode-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mode-btn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
 /* ─── Page view (full-screen overlay) ─── */
 
 .page-view {
