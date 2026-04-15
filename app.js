@@ -828,18 +828,33 @@ function esc(str) {
 
 // ─── Entertainment form logic ─────────────────────────────────────────────────
 
-function setupEntertainmentListeners(initialData = {}) {
-  const tipoEl    = document.getElementById('f-tipo');
-  const tituloEl  = document.getElementById('f-titulo');
-  const tempEl    = document.getElementById('f-temporada');
-  const epNumEl   = document.getElementById('f-episodio_numero');
-  const epTitleEl = document.getElementById('f-episodio_titulo');
-  const groups    = document.querySelectorAll('.series-field-group');
+function setupEntertainmentListeners(initialData = {}, pastSuggestions = {}) {
+  const tipoEl     = document.getElementById('f-tipo');
+  const tituloEl   = document.getElementById('f-titulo');
+  const tituloList = document.getElementById('list-titulo');
+  const tempEl     = document.getElementById('f-temporada');
+  const epNumEl    = document.getElementById('f-episodio_numero');
+  const epTitleEl  = document.getElementById('f-episodio_titulo');
+  const groups     = document.querySelectorAll('.series-field-group');
 
   const isSeries = () => ['Série', 'Anime'].includes(tipoEl?.value);
 
   const showHide = () => {
     groups.forEach(g => g.style.display = isSeries() ? '' : 'none');
+  };
+
+  // Catalog series names (for datalist when tipo = Série/Anime)
+  const catalogSeriesNames = catalogItems
+    .filter(c => c.category === 'serie')
+    .map(c => c.name)
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+  const pastTitles = pastSuggestions.titulo || [];
+
+  const updateTituloList = () => {
+    if (!tituloList) return;
+    const names = isSeries() ? catalogSeriesNames : pastTitles;
+    tituloList.innerHTML = names.map(n => `<option value="${esc(n)}">`).join('');
   };
 
   const getSeasons = () => {
@@ -868,25 +883,84 @@ function setupEntertainmentListeners(initialData = {}) {
     else if (!epTitleEl._userEdited) epTitleEl.value = '';
   };
 
-  const applyFromCatalog = (prefill) => {
-    const entry = getCatalogEntry('serie', tituloEl?.value?.trim() || '');
+  // Returns the index (in catalogEntry.items) of the last episode logged in the
+  // diary for this series, or -1 if none found.
+  const getLastDiaryEpIdx = async (catalogEntry, seriesName) => {
+    let diaryEntries = [];
+    if (db) {
+      const { data } = await db
+        .from('log_entries')
+        .select('data')
+        .eq('type', 'entretenimento')
+        .filter('data->>titulo', 'eq', seriesName);
+      diaryEntries = data || [];
+    } else {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key.startsWith('diary_')) continue;
+        const items = JSON.parse(localStorage.getItem(key) || '[]');
+        diaryEntries.push(...items.filter(e =>
+          e.type === 'entretenimento' && e.data?.titulo === seriesName
+        ));
+      }
+    }
+    let maxIdx = -1;
+    for (const e of diaryEntries) {
+      const s = e.data?.temporada;
+      const n = e.data?.episodio_numero;
+      if (s == null || n == null) continue;
+      const prefix = `${s}x${String(n).padStart(2, '0')} - `;
+      const idx = catalogEntry.items.findIndex(item => item.startsWith(prefix));
+      if (idx > maxIdx) maxIdx = idx;
+    }
+    return maxIdx;
+  };
+
+  const applyFromCatalog = async (prefill) => {
+    const name  = tituloEl?.value?.trim() || '';
+    const entry = getCatalogEntry('serie', name);
     if (!entry || !entry.items.length) {
       if (tempEl) tempEl.removeAttribute('max');
       if (epNumEl) epNumEl.removeAttribute('max');
       return;
     }
 
-    const seasons = parseCatalogSeasons(entry.items);
+    const seasons   = parseCatalogSeasons(entry.items);
     const maxSeason = Math.max(...Object.keys(seasons).map(Number));
-    if (tempEl) tempEl.max = maxSeason;
 
-    if (prefill) {
+    if (prefill && !editingEntry) {
+      // Reset fields before async lookup
+      if (tempEl)    { tempEl.value = '';    tempEl.max = maxSeason; }
+      if (epNumEl)   { epNumEl.value = '';   epNumEl.removeAttribute('max'); }
+      if (epTitleEl) { epTitleEl.value = ''; epTitleEl._userEdited = false; }
+
+      // Index of next episode from sync metadata
+      let catalogNextIdx = -1;
       const ns = entry.metadata?.next_season;
       const ne = entry.metadata?.next_episode;
       if (ns != null && ne != null) {
-        if (tempEl && !tempEl.value)   tempEl.value = ns;
-        if (epNumEl && !epNumEl.value) epNumEl.value = ne;
+        const prefix = `${ns}x${String(ne).padStart(2, '0')} - `;
+        catalogNextIdx = entry.items.findIndex(item => item.startsWith(prefix));
       }
+
+      // Index of next episode based on last diary log
+      const lastDiaryIdx  = await getLastDiaryEpIdx(entry, name);
+      const diaryNextIdx  = lastDiaryIdx >= 0 ? lastDiaryIdx + 1 : -1;
+
+      // Guard: user may have changed the title while we were awaiting
+      if ((tituloEl?.value?.trim() || '') !== name) return;
+
+      // Use whichever points further in the episode list
+      const nextIdx = Math.max(catalogNextIdx, diaryNextIdx);
+      if (nextIdx >= 0 && nextIdx < entry.items.length) {
+        const m = entry.items[nextIdx].match(/^(\d+)x(\d+)/);
+        if (m) {
+          if (tempEl)  tempEl.value  = parseInt(m[1]);
+          if (epNumEl) epNumEl.value = parseInt(m[2]);
+        }
+      }
+    } else {
+      if (tempEl) tempEl.max = maxSeason;
     }
 
     applyEpisodeConstraints(seasons, tempEl?.value);
@@ -896,6 +970,7 @@ function setupEntertainmentListeners(initialData = {}) {
   // Bind events
   tipoEl?.addEventListener('change', () => {
     showHide();
+    updateTituloList();
     if (isSeries()) applyFromCatalog(true);
   });
 
@@ -915,6 +990,7 @@ function setupEntertainmentListeners(initialData = {}) {
   epTitleEl?.addEventListener('input', () => { epTitleEl._userEdited = true; });
 
   // Initial state
+  updateTituloList();
   showHide();
   if (isSeries()) applyFromCatalog(false);
 }
@@ -977,7 +1053,7 @@ async function showFormStep(type, initialData = {}, initialCustomFields = {}) {
   Object.entries(initialCustomFields).forEach(([k, v]) => addCustomField(k, v));
 
   // Entertainment-specific dynamic behavior
-  if (type === 'entretenimento') setupEntertainmentListeners(initialData);
+  if (type === 'entretenimento') setupEntertainmentListeners(initialData, suggestions);
 
   // Bind catalog-driven datalists
   typeDef.fields.filter(f => f.catalogRef).forEach(f => {
