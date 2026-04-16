@@ -47,6 +47,16 @@ const ENTRY_TYPES = {
       { key: 'descricao', label: 'Descrição', type: 'textarea', placeholder: 'No que você trabalhou?', optional: true },
     ],
   },
+  mestrado: {
+    icon: '🎓',
+    label: 'Mestrado',
+    color: '#16a085',
+    fields: [
+      { key: 'categoria', label: 'Categoria', type: 'select', options: ['Dissertação', 'Monitoria', 'Artigo'] },
+      { key: 'horas', label: 'Horas trabalhadas', type: 'text', placeholder: '5h26min' },
+      { key: 'descricao', label: 'Descrição', type: 'textarea', placeholder: 'No que você trabalhou?', optional: true },
+    ],
+  },
   refeicao: {
     icon: '🍽️',
     label: 'Refeição',
