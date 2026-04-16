@@ -795,8 +795,8 @@ function renderCardContent(entry, typeDef) {
     case 'mestrado': {
       const lines = [];
       if (d.categoria) lines.push(`Categoria: <strong>${esc(d.categoria)}</strong>`);
-      if (d.horas)     lines.push(`Horas: <strong>${esc(String(d.horas))}</strong>`);
-      if (d.descricao) lines.push(`Descrição: <span class="entry-muted">${esc(d.descricao)}</span>`);
+      if (d.horas)     lines.push(`<strong>${esc(String(d.horas))}</strong> trabalhadas`);
+      if (d.descricao) lines.push(`<span class="entry-muted">${esc(d.descricao)}</span>`);
       return lines.join('<br>');
     }
 
