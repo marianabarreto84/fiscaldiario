@@ -792,6 +792,14 @@ function renderCardContent(entry, typeDef) {
       return parts.join('');
     }
 
+    case 'mestrado': {
+      const lines = [];
+      if (d.categoria) lines.push(`Categoria: <strong>${esc(d.categoria)}</strong>`);
+      if (d.horas)     lines.push(`Horas: <strong>${esc(String(d.horas))}</strong>`);
+      if (d.descricao) lines.push(`Descrição: <span class="entry-muted">${esc(d.descricao)}</span>`);
+      return lines.join('<br>');
+    }
+
     case 'refeicao': {
       const parts = [];
       if (d.refeicao) parts.push(`<strong>${esc(d.refeicao)}</strong>`);
