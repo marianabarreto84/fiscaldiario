@@ -758,19 +758,20 @@ function renderCardContent(entry, typeDef) {
     case 'transporte': {
       const formatDT = s => {
         if (!s) return '';
-        const d = new Date(s);
-        return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const dt = new Date(s);
+        return dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
       };
-      const parts = [];
-      if (d.servico) parts.push(`<strong>${esc(d.servico)}</strong>`);
+      const line1 = [];
+      const line2 = [];
+      if (d.servico) line1.push(`<strong>${esc(d.servico)}</strong>`);
+      if (d.valor) line1.push(`<strong>${formatCurrency(d.valor)}</strong>`);
       const route = [d.de, d.para].filter(Boolean).map(esc).join(' → ');
-      if (route) parts.push(route);
-      if (d.inicio || d.fim) {
-        const timeRange = [formatDT(d.inicio), formatDT(d.fim)].filter(Boolean).join(' → ');
-        parts.push(`<span class="entry-muted">${timeRange}</span>`);
-      }
-      if (d.valor) parts.push(`<strong>${formatCurrency(d.valor)}</strong>`);
-      return parts.join(' · ');
+      if (route) line2.push(route);
+      if (d.inicio || d.fim) line2.push([formatDT(d.inicio), formatDT(d.fim)].filter(Boolean).join(' → '));
+      const parts = [];
+      if (line1.length) parts.push(line1.join(' · '));
+      if (line2.length) parts.push(`<span class="entry-muted">${line2.join(' · ')}</span>`);
+      return parts.join('<br>');
     }
 
     case 'musica': {
