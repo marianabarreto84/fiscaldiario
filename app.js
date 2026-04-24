@@ -12,6 +12,7 @@ const ENTRY_TYPES = {
       { key: 'inicio', label: 'Início', type: 'datetime-local', optional: true },
       { key: 'fim', label: 'Fim', type: 'datetime-local', optional: true },
       { key: 'valor', label: 'Valor (R$)', type: 'number', step: '0.01', placeholder: '0,00', optional: true },
+      { key: 'obs', label: 'Obs', type: 'textarea', optional: true },
     ],
   },
   musica: {
@@ -24,6 +25,7 @@ const ENTRY_TYPES = {
       { key: 'de_faixa', label: 'De faixa', type: 'text', optional: true, catalogRef: { category: 'album', sourceField: 'album' } },
       { key: 'ate_faixa', label: 'Até faixa', type: 'text', optional: true, catalogRef: { category: 'album', sourceField: 'album' } },
       { key: 'contexto', label: 'Contexto', type: 'text', placeholder: 'indo para o trabalho', optional: true },
+      { key: 'obs', label: 'Obs', type: 'textarea', optional: true },
     ],
   },
   entretenimento: {
@@ -36,7 +38,8 @@ const ENTRY_TYPES = {
       { key: 'temporada',       label: 'Temporada',          type: 'number', min: '1', optional: true, seriesOnly: true },
       { key: 'episodio_numero', label: 'Episódio',           type: 'number', min: '1', optional: true, seriesOnly: true },
       { key: 'episodio_titulo', label: 'Título do episódio', type: 'text',   optional: true, seriesOnly: true },
-      { key: 'periodo',         label: 'Período',            type: 'select', options: ['Manhã', 'Tarde', 'Noite'], optional: true },
+      { key: 'periodo',         label: 'Período',            type: 'select', options: ['Manhã', 'Tarde', 'Noite', 'Madrugada'], optional: true },
+      { key: 'obs', label: 'Obs', type: 'textarea', optional: true },
     ],
   },
   trabalho: {
@@ -46,6 +49,7 @@ const ENTRY_TYPES = {
     fields: [
       { key: 'horas', label: 'Horas trabalhadas', type: 'text', placeholder: '5h26min' },
       { key: 'descricao', label: 'Descrição', type: 'textarea', placeholder: 'No que você trabalhou?', optional: true },
+      { key: 'obs', label: 'Obs', type: 'textarea', optional: true },
     ],
   },
   mestrado: {
@@ -56,6 +60,7 @@ const ENTRY_TYPES = {
       { key: 'categoria', label: 'Categoria', type: 'select', options: ['Dissertação', 'Monitoria', 'Artigo'] },
       { key: 'horas', label: 'Horas trabalhadas', type: 'text', placeholder: '5h26min' },
       { key: 'descricao', label: 'Descrição', type: 'textarea', placeholder: 'No que você trabalhou?', optional: true },
+      { key: 'obs', label: 'Obs', type: 'textarea', optional: true },
     ],
   },
   refeicao: {
@@ -67,6 +72,7 @@ const ENTRY_TYPES = {
       { key: 'local', label: 'Local', type: 'text', optional: true, autocomplete: true },
       { key: 'via', label: 'Via', type: 'select', options: ['Presencial', 'IFood', 'Delivery'], optional: true },
       { key: 'valor', label: 'Valor (R$)', type: 'number', step: '0.01', placeholder: '0,00', optional: true },
+      { key: 'obs', label: 'Obs', type: 'textarea', optional: true },
     ],
   },
   leitura: {
@@ -77,6 +83,7 @@ const ENTRY_TYPES = {
       { key: 'tipo', label: 'Tipo', type: 'select', options: ['Livro', 'Artigo', 'Newsletter', 'HQ', 'Outro'] },
       { key: 'titulo', label: 'Título', type: 'text', autocomplete: true },
       { key: 'autor', label: 'Autor', type: 'text', optional: true, autocomplete: true },
+      { key: 'obs', label: 'Obs', type: 'textarea', optional: true },
     ],
   },
   gasto: {
@@ -87,6 +94,7 @@ const ENTRY_TYPES = {
       { key: 'descricao', label: 'Descrição', type: 'text', autocomplete: true },
       { key: 'valor', label: 'Valor (R$)', type: 'number', step: '0.01' },
       { key: 'categoria', label: 'Categoria', type: 'text', placeholder: 'alimentação, lazer…', optional: true, autocomplete: true },
+      { key: 'obs', label: 'Obs', type: 'textarea', optional: true },
     ],
   },
   nota: {
@@ -743,7 +751,7 @@ function renderCard(entry) {
 function renderCardContent(entry, typeDef) {
   const d = entry.data || {};
 
-  switch (entry.type) {
+  const main = (() => { switch (entry.type) {
     case 'transporte': {
       const formatDT = s => {
         if (!s) return '';
@@ -840,10 +848,16 @@ function renderCardContent(entry, typeDef) {
 
     default:
       return Object.entries(d)
-        .filter(([, v]) => v !== null && v !== '')
+        .filter(([k, v]) => k !== 'obs' && v !== null && v !== '')
         .map(([k, v]) => `<span class="entry-muted">${esc(k)}:</span> ${esc(String(v))}`)
         .join(' · ');
+  } })();
+
+  if (d.obs) {
+    const obsHtml = `<span class="entry-muted">${esc(d.obs).replace(/\n/g, '<br>')}</span>`;
+    return main ? `${main}<br>${obsHtml}` : obsHtml;
   }
+  return main ?? '';
 }
 
 function esc(str) {
