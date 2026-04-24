@@ -208,3 +208,6 @@ __marimo__/
 
 # Credenciais locais (não commitar)
 config.js
+
+# Claude Code
+.claude/
