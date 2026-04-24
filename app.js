@@ -32,6 +32,7 @@ const ENTRY_TYPES = {
     icon: '📺',
     label: 'Série / Filme',
     color: '#8e44ad',
+    hidden: true,
     fields: [
       { key: 'tipo',            label: 'Tipo',               type: 'select', options: ['Série', 'Filme', 'Documentário', 'Anime', 'Outro'] },
       { key: 'titulo',          label: 'Título',             type: 'text', autocomplete: true },
@@ -39,6 +40,31 @@ const ENTRY_TYPES = {
       { key: 'episodio_numero', label: 'Episódio',           type: 'number', min: '1', optional: true, seriesOnly: true },
       { key: 'episodio_titulo', label: 'Título do episódio', type: 'text',   optional: true, seriesOnly: true },
       { key: 'periodo',         label: 'Período',            type: 'select', options: ['Manhã', 'Tarde', 'Noite', 'Madrugada'], optional: true },
+      { key: 'obs', label: 'Obs', type: 'textarea', optional: true },
+    ],
+  },
+  serie: {
+    icon: '📺',
+    label: 'Série',
+    color: '#8e44ad',
+    fields: [
+      { key: 'tipo',            label: 'Tipo',               type: 'select', options: ['Série', 'Anime'] },
+      { key: 'titulo',          label: 'Título',             type: 'text', autocomplete: true },
+      { key: 'temporada',       label: 'Temporada',          type: 'number', min: '1', optional: true, seriesOnly: true },
+      { key: 'episodio_numero', label: 'Episódio',           type: 'number', min: '1', optional: true, seriesOnly: true },
+      { key: 'episodio_titulo', label: 'Título do episódio', type: 'text',   optional: true, seriesOnly: true },
+      { key: 'periodo',         label: 'Período',            type: 'select', options: ['Manhã', 'Tarde', 'Noite', 'Madrugada'], optional: true },
+      { key: 'obs', label: 'Obs', type: 'textarea', optional: true },
+    ],
+  },
+  filme: {
+    icon: '🎬',
+    label: 'Filme',
+    color: '#e53935',
+    fields: [
+      { key: 'tipo',    label: 'Tipo',    type: 'select', options: ['Filme', 'Documentário', 'Outro'] },
+      { key: 'titulo',  label: 'Título',  type: 'text', autocomplete: true },
+      { key: 'periodo', label: 'Período', type: 'select', options: ['Manhã', 'Tarde', 'Noite', 'Madrugada'], optional: true },
       { key: 'obs', label: 'Obs', type: 'textarea', optional: true },
     ],
   },
@@ -786,6 +812,7 @@ function renderCardContent(entry, typeDef) {
       return lines.join('<br>');
     }
 
+    case 'serie':
     case 'entretenimento': {
       const lines = [];
       const header = [d.tipo, d.titulo ? `<strong>${esc(d.titulo)}</strong>` : null].filter(Boolean).join(' · ');
@@ -803,6 +830,14 @@ function renderCardContent(entry, typeDef) {
         lines.push(`<span class="entry-muted">${esc(d.episodio)}</span>`);
       }
 
+      if (d.periodo) lines.push(`<span class="entry-muted">${esc(d.periodo)}</span>`);
+      return lines.join('<br>');
+    }
+
+    case 'filme': {
+      const lines = [];
+      const header = [d.tipo, d.titulo ? `<strong>${esc(d.titulo)}</strong>` : null].filter(Boolean).join(' · ');
+      if (header) lines.push(header);
       if (d.periodo) lines.push(`<span class="entry-muted">${esc(d.periodo)}</span>`);
       return lines.join('<br>');
     }
@@ -1109,7 +1144,7 @@ async function showFormStep(type, initialData = {}, initialCustomFields = {}) {
   Object.entries(initialCustomFields).forEach(([k, v]) => addCustomField(k, v));
 
   // Entertainment-specific dynamic behavior
-  if (type === 'entretenimento') setupEntertainmentListeners(initialData, suggestions);
+  if (type === 'entretenimento' || type === 'serie') setupEntertainmentListeners(initialData, suggestions);
   if (type === 'leitura') setupLeituraListeners(initialData);
 
   // Bind catalog-driven datalists
@@ -1397,7 +1432,7 @@ async function handleSubmit(e) {
 
 function buildTypeGrid() {
   const grid = document.getElementById('type-grid');
-  grid.innerHTML = Object.entries(ENTRY_TYPES).map(([key, t]) => `
+  grid.innerHTML = Object.entries(ENTRY_TYPES).filter(([, t]) => !t.hidden).map(([key, t]) => `
     <button class="type-btn" data-type="${key}" style="--type-color:${t.color}" type="button">
       <span class="type-btn-icon">${t.icon}</span>
       <span class="type-btn-label">${t.label}</span>
