@@ -64,7 +64,8 @@ const ENTRY_TYPES = {
     color: '#f39c12',
     fields: [
       { key: 'refeicao', label: 'Refeição', type: 'select', options: ['Café da manhã', 'Almoço', 'Jantar', 'Lanche'] },
-      { key: 'local', label: 'Local', type: 'text', optional: true },
+      { key: 'local', label: 'Local', type: 'text', optional: true, autocomplete: true },
+      { key: 'via', label: 'Via', type: 'select', options: ['Presencial', 'IFood', 'Delivery'], optional: true },
       { key: 'valor', label: 'Valor (R$)', type: 'number', step: '0.01', placeholder: '0,00', optional: true },
     ],
   },
@@ -813,6 +814,7 @@ function renderCardContent(entry, typeDef) {
       const parts = [];
       if (d.refeicao) parts.push(`<strong>${esc(d.refeicao)}</strong>`);
       if (d.local) parts.push(esc(d.local));
+      if (d.via) parts.push(`<span class="entry-muted">${esc(d.via)}</span>`);
       if (d.valor) parts.push(formatCurrency(d.valor));
       return parts.join(' · ');
     }
