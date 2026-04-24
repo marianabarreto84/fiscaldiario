@@ -826,7 +826,7 @@ function renderCardContent(entry, typeDef) {
       if (d.refeicao) parts.push(`<strong>${esc(d.refeicao)}</strong>`);
       if (d.local) parts.push(esc(d.local));
       if (d.via) parts.push(`<span class="entry-muted">${esc(d.via)}</span>`);
-      if (d.valor) parts.push(formatCurrency(d.valor));
+      if (d.valor) parts.push(`<strong>${formatCurrency(d.valor)}</strong>`);
       return parts.join(' · ');
     }
 
