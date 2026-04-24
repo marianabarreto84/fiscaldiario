@@ -83,6 +83,9 @@ const ENTRY_TYPES = {
       { key: 'tipo', label: 'Tipo', type: 'select', options: ['Livro', 'Artigo', 'Newsletter', 'HQ', 'Outro'] },
       { key: 'titulo', label: 'Título', type: 'text', autocomplete: true },
       { key: 'autor', label: 'Autor', type: 'text', optional: true, autocomplete: true },
+      { key: 'formato', label: 'Formato', type: 'select', options: ['Físico', 'Ebook', 'Audiobook'], optional: true },
+      { key: 'dispositivo', label: 'Dispositivo', type: 'select', options: ['Celular', 'Kindle', 'iPad'], optional: true },
+      { key: 'progresso', label: 'Progresso', type: 'text', optional: true },
       { key: 'obs', label: 'Obs', type: 'textarea', optional: true },
     ],
   },
@@ -832,6 +835,11 @@ function renderCardContent(entry, typeDef) {
       if (d.tipo) parts.push(esc(d.tipo));
       if (d.titulo) parts.push(`<strong>${esc(d.titulo)}</strong>`);
       if (d.autor) parts.push(`<span class="entry-muted">${esc(d.autor)}</span>`);
+      if (d.formato) parts.push(`<span class="entry-muted">${esc(d.formato)}</span>`);
+      if (d.progresso) {
+        const prefix = d.formato === 'Físico' ? 'pág. ' : '';
+        parts.push(`<span class="entry-muted">${prefix}${esc(d.progresso)}</span>`);
+      }
       return parts.join(' · ');
     }
 
@@ -1097,6 +1105,7 @@ async function showFormStep(type, initialData = {}, initialCustomFields = {}) {
 
   // Entertainment-specific dynamic behavior
   if (type === 'entretenimento') setupEntertainmentListeners(initialData, suggestions);
+  if (type === 'leitura') setupLeituraListeners(initialData);
 
   // Bind catalog-driven datalists
   typeDef.fields.filter(f => f.catalogRef).forEach(f => {
@@ -1229,6 +1238,77 @@ function buildFieldInner(field, suggestions = {}) {
         ${field.min !== undefined ? `min="${field.min}"` : ''}
         ${required}>
     </div>`;
+}
+
+// ─── Leitura form logic ───────────────────────────────────────────────────────
+
+function setupLeituraListeners(initialData = {}) {
+  const tituloEl       = document.getElementById('f-titulo');
+  const formatoEl      = document.getElementById('f-formato');
+  const dispositivoEl  = document.getElementById('f-dispositivo');
+  const progressoEl    = document.getElementById('f-progresso');
+  const dispositivoGrp = dispositivoEl?.closest('.form-group');
+  const progressoLabel = progressoEl?.closest('.form-group')?.querySelector('label');
+
+  const DISPOSITIVO_DEFAULT = { Ebook: 'Kindle', Audiobook: 'Celular' };
+  const PROGRESSO_CONFIG = {
+    'Físico':    { label: 'Página',      placeholder: '245' },
+    Ebook:     { label: 'Porcentagem', placeholder: '67%' },
+    Audiobook: { label: 'Tempo',       placeholder: '1h23min' },
+  };
+
+  let lastData = null;
+
+  const applyFormatoUI = () => {
+    const fmt = formatoEl?.value;
+    if (dispositivoGrp) dispositivoGrp.style.display = (!fmt || fmt === 'Físico') ? 'none' : '';
+    const cfg = PROGRESSO_CONFIG[fmt];
+    if (cfg) {
+      if (progressoLabel) progressoLabel.textContent = cfg.label;
+      if (progressoEl) progressoEl.placeholder = cfg.placeholder;
+    }
+  };
+
+  formatoEl?.addEventListener('change', () => {
+    const fmt = formatoEl?.value;
+    applyFormatoUI();
+    if (dispositivoEl && !dispositivoEl.value && DISPOSITIVO_DEFAULT[fmt]) {
+      dispositivoEl.value = DISPOSITIVO_DEFAULT[fmt];
+    }
+    if (progressoEl && lastData) {
+      progressoEl.value = fmt === lastData.formato ? (lastData.progresso || '') : '';
+    }
+  });
+
+  const fetchLastEntry = async (titulo) => {
+    if (!titulo) return;
+    let data = null;
+    if (db) {
+      const res = await db
+        .from('log_entries')
+        .select('data')
+        .eq('type', 'leitura')
+        .filter('data->>titulo', 'eq', titulo)
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1);
+      data = res.data?.[0]?.data || null;
+    }
+    if (tituloEl?.value.trim() !== titulo) return; // stale
+    lastData = data;
+    if (!lastData) return;
+
+    if (formatoEl && lastData.formato) formatoEl.value = lastData.formato;
+    applyFormatoUI();
+    if (dispositivoEl && lastData.dispositivo) dispositivoEl.value = lastData.dispositivo;
+    if (progressoEl && lastData.progresso) progressoEl.value = lastData.progresso;
+  };
+
+  tituloEl?.addEventListener('change', e => {
+    if (!editingEntry) fetchLastEntry(e.target.value.trim());
+  });
+
+  applyFormatoUI();
 }
 
 // ─── Custom fields ────────────────────────────────────────────────────────────
