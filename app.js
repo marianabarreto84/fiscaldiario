@@ -982,7 +982,7 @@ function setupEntertainmentListeners(initialData = {}, pastSuggestions = {}) {
       const { data } = await db
         .from('log_entries')
         .select('data')
-        .in('type', ['serie', 'entretenimento'])
+        .eq('type', 'serie')
         .filter('data->>titulo', 'eq', seriesName);
       diaryEntries = data || [];
     } else {
@@ -991,7 +991,7 @@ function setupEntertainmentListeners(initialData = {}, pastSuggestions = {}) {
         if (!key.startsWith('diary_')) continue;
         const items = JSON.parse(localStorage.getItem(key) || '[]');
         diaryEntries.push(...items.filter(e =>
-          ['serie', 'entretenimento'].includes(e.type) && e.data?.titulo === seriesName
+          e.type === 'serie' && e.data?.titulo === seriesName
         ));
       }
     }
