@@ -7,9 +7,10 @@ const ENTRY_TYPES = {
     color: '#e67e22',
     fields: [
       { key: 'servico', label: 'Serviço', type: 'select', options: ['Uber', '99', 'Táxi', 'Ônibus', 'Metrô', 'Carro', 'A pé', 'Outro'] },
-      { key: 'sentido', label: 'Sentido', type: 'select', options: ['Ida', 'Volta', 'Ida e volta'] },
       { key: 'de', label: 'De', type: 'text', placeholder: 'Casa JB', autocomplete: true },
       { key: 'para', label: 'Para', type: 'text', placeholder: 'Quantum', autocomplete: true },
+      { key: 'inicio', label: 'Início', type: 'datetime-local', optional: true },
+      { key: 'fim', label: 'Fim', type: 'datetime-local', optional: true },
       { key: 'valor', label: 'Valor (R$)', type: 'number', step: '0.01', placeholder: '0,00', optional: true },
     ],
   },
@@ -743,11 +744,19 @@ function renderCardContent(entry, typeDef) {
 
   switch (entry.type) {
     case 'transporte': {
+      const formatDT = s => {
+        if (!s) return '';
+        const d = new Date(s);
+        return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      };
       const parts = [];
       if (d.servico) parts.push(`<strong>${esc(d.servico)}</strong>`);
-      if (d.sentido) parts.push(esc(d.sentido));
       const route = [d.de, d.para].filter(Boolean).map(esc).join(' → ');
       if (route) parts.push(route);
+      if (d.inicio || d.fim) {
+        const timeRange = [formatDT(d.inicio), formatDT(d.fim)].filter(Boolean).join(' → ');
+        parts.push(`<span class="entry-muted">${timeRange}</span>`);
+      }
       if (d.valor) parts.push(`<strong>${formatCurrency(d.valor)}</strong>`);
       return parts.join(' · ');
     }
