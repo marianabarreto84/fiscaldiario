@@ -70,7 +70,7 @@ const ENTRY_TYPES = {
     fields: [
       { key: 'refeicao', label: 'Refeição', type: 'select', options: ['Café da manhã', 'Almoço', 'Jantar', 'Lanche'] },
       { key: 'local', label: 'Local', type: 'text', optional: true, autocomplete: true },
-      { key: 'via', label: 'Via', type: 'select', options: ['Presencial', 'IFood', 'Delivery'], optional: true },
+      { key: 'via', label: 'Via', type: 'select', options: ['Restaurante', 'Bar', 'Lanchonete', 'IFood', 'Delivery'], optional: true },
       { key: 'valor', label: 'Valor (R$)', type: 'number', step: '0.01', placeholder: '0,00', optional: true },
       { key: 'obs', label: 'Obs', type: 'textarea', optional: true },
     ],
@@ -822,12 +822,16 @@ function renderCardContent(entry, typeDef) {
     }
 
     case 'refeicao': {
+      const line1 = [];
+      const line2 = [];
+      if (d.via) line1.push(`<strong>${esc(d.via)}</strong>`);
+      if (d.valor) line1.push(`<strong>${formatCurrency(d.valor)}</strong>`);
+      if (d.refeicao) line2.push(esc(d.refeicao));
+      if (d.local) line2.push(esc(d.local));
       const parts = [];
-      if (d.refeicao) parts.push(`<strong>${esc(d.refeicao)}</strong>`);
-      if (d.local) parts.push(esc(d.local));
-      if (d.via) parts.push(`<span class="entry-muted">${esc(d.via)}</span>`);
-      if (d.valor) parts.push(`<strong>${formatCurrency(d.valor)}</strong>`);
-      return parts.join(' · ');
+      if (line1.length) parts.push(line1.join(' · '));
+      if (line2.length) parts.push(`<span class="entry-muted">${line2.join(' · ')}</span>`);
+      return parts.join('<br>');
     }
 
     case 'leitura': {
