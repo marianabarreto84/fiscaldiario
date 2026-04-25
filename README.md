@@ -1,6 +1,6 @@
 # Diário
 
-Site serverless para log diário pessoal. Registre transporte, música, séries, trabalho, gastos e mais — com campos extras personalizados em cada entrada.
+Site serverless para log diário pessoal. Registre transporte, refeições, séries, filmes, leitura, trabalho, gastos e mais — com campos extras personalizados em cada entrada.
 
 Acesse pelo celular ou computador. Dados ficam no `localStorage` por padrão; configure o Supabase para sincronizar entre dispositivos.
 
@@ -38,28 +38,43 @@ Sem Supabase, os dados ficam apenas no navegador atual. Com Supabase, você aces
    - **Project URL**
    - **anon public** key
 
-### 2. Criar a tabela
+### 2. Criar as tabelas
 
 No **SQL Editor** do Supabase, execute:
 
 ```sql
 create table log_entries (
-  id          uuid        default gen_random_uuid() primary key,
-  date        date        not null,
-  type        text        not null,
-  data        jsonb       not null default '{}',
-  custom_fields jsonb     not null default '{}',
-  created_at  timestamptz default now()
+  id            uuid        default gen_random_uuid() primary key,
+  date          date        not null,
+  type          text        not null,
+  data          jsonb       not null default '{}',
+  custom_fields jsonb       not null default '{}',
+  position      integer,
+  created_at    timestamptz default now()
 );
 
 create index on log_entries (date);
 
--- Habilitar Row Level Security
 alter table log_entries enable row level security;
 
--- Acesso público (para uso pessoal sem autenticação)
 create policy "public access"
   on log_entries for all
+  using (true)
+  with check (true);
+
+-- Catálogo (séries, álbuns, etc.)
+create table catalog (
+  id       uuid default gen_random_uuid() primary key,
+  category text not null,
+  name     text not null,
+  metadata jsonb not null default '{}',
+  items    jsonb not null default '[]'
+);
+
+alter table catalog enable row level security;
+
+create policy "public access"
+  on catalog for all
   using (true)
   with check (true);
 ```
@@ -77,24 +92,38 @@ window.SUPABASE_KEY = 'sua-anon-key-aqui';
 
 ## Tipos de registro
 
-| Tipo | Campos |
-|------|--------|
-| 🚗 Transporte | Serviço, Sentido, De/Para, Valor |
-| 🎵 Música | Artista, Álbum/Playlist, Contexto |
-| 📺 Série/Filme | Tipo, Título, Episódio, Período |
-| 💼 Trabalho | Horas, Descrição |
-| 🍽️ Refeição | Refeição, Local, Valor |
-| 📚 Leitura | Tipo, Título, Autor |
+| Tipo | Campos principais |
+|------|-------------------|
+| 🚗 Transporte | Serviço, De/Para, Início/Fim, Valor |
+| 🎵 Música | Artista, Álbum/Playlist, Faixas, Contexto |
+| 📺 Série | Tipo (Série/Anime), Título, Temporada, Episódio, Período |
+| 🎬 Filme | Tipo (Filme/Documentário), Título, Período |
+| 💼 Trabalho | Horas trabalhadas, Descrição |
+| 🎓 Mestrado | Categoria (Dissertação/Monitoria/Artigo), Horas, Descrição |
+| 🍽️ Refeição | Refeição, Local, Via (Restaurante/Bar/IFood/…), Valor |
+| 📚 Leitura | Tipo, Título, Autor, Formato (Físico/Ebook/Audiobook), Dispositivo, Progresso |
 | 💸 Gasto | Descrição, Valor, Categoria |
 | 📝 Nota | Texto livre |
 
-Qualquer tipo aceita campos extras personalizados (chave + valor livre).
+Todos os tipos aceitam um campo **Obs** opcional e campos extras personalizados (chave + valor livre).
 
 ---
 
-## Exportar dados
+## Catálogo de séries
 
-Com Supabase, acesse o **Table Editor** ou use o SQL Editor para exportar. Exemplo:
+O script `scripts/sync_series.py` sincroniza as séries do banco SQLite do [fiscaldeseries](https://github.com/marianabarreto84/fiscaldeseries) com o catálogo do Supabase. Para cada série, armazena todos os episódios em `items` e o próximo não assistido em `metadata`, permitindo autocompletar temporada/episódio no formulário.
+
+```bash
+py scripts/sync_series.py
+```
+
+---
+
+## Baixar dados
+
+Use o botão ↓ no cabeçalho para baixar os registros de um dia ou período em JSON.
+
+Com Supabase, também é possível exportar via SQL Editor. Exemplos:
 
 ```sql
 -- Todos os registros de uma data
@@ -111,9 +140,8 @@ where type = 'gasto'
 order by date;
 
 -- Horas trabalhadas por dia
-select date, sum((data->>'horas')::numeric) as horas
+select date, data->>'horas' as horas
 from log_entries
-where type = 'trabalho'
-group by date
+where type in ('trabalho', 'mestrado')
 order by date;
 ```
